@@ -28,7 +28,6 @@ styles = {
 }
 
 #metro = pd.read_csv('stops_3Dates.csv')
-metro2 = pd.read_csv('stopsUsage.csv')
 metro3 = pd.read_csv('../2016-2018_Metro_data_sorted_and_cleaned.csv').rename(columns={'GTFS_ID':'stop_id'})
 stopList = pd.read_csv('../stops.csv')
 
@@ -44,15 +43,7 @@ metro3.USAGE += 4
 #usage = metro['2016-03-01']
 #colourscale = [[0, 'rgb(0,0,0)'], [1, 'rgb(255,0,0)']]
 
-site_lat = metro2.stop_lat
-site_lon = metro2.stop_lon
-locations_name = metro2.stop_name
-usage = metro2.USAGE
-stop_ids = metro2.stop_id
 
-usage = usage.astype(int)
-
-hover = locations_name + " | Usage: " + usage.astype(str)
 
 colourscale = [
         [0, 'rgb(250, 250, 250)'],        #0
@@ -123,53 +114,8 @@ def getMarks(Nth=120):
                             daterange.max()),
                             '''
 
-trace1 = go.Densitymapbox(
-            lat = site_lat,
-            lon = site_lon,
-            z = usage,
-            autocolorscale = False,
-            colorscale = 'Viridis',
-            #colorscale = colourscale,
-            ###
-            #colorbar = dict(
-               # tick0 = 0,
-              #  tickmode = 'array',
-             #   tickvals = [0, 1000, 10000, 100000]
-            #),
-            radius = 20,
-            meta = locations_name,
-            text = locations_name,
-            hoverinfo = 'text+z',
-            name = "heatmap",
-            zmin = 100,
-            zmax = 200000,
-        )
 
 
-
-trace2 = go.Scattermapbox(
-                    lat=site_lat,
-                    lon=site_lon,
-                    meta = stop_ids,
-                    mode='markers',
-                    marker=dict(
-                        size = 5,
-                        #color=usage,
-                        color = 'black',
-                        opacity = 0.7,
-                        #cmax=2000000,
-                        #cmin=0,
-                        colorscale = 'Viridis',
-                        #showscale = True,
-                    ),
-                    hovertext=hover,
-                    hoverinfo = "text",
-                    #hoverinfo="text",
-                    
-                    name="stops",
-                )
-
-mapData = np.array([trace1, trace2])
 
 app.layout = html.Div([
     
@@ -230,39 +176,6 @@ app.layout = html.Div([
 
             dcc.Graph(
                 id='metro_density',
-                figure = {
-                'data': mapData,
-
-
-                'layout': go.Layout(
-                    title='Adelaide Stops',
-                    autosize=False,
-                    width = 900,
-                    height = 800,
-                    hovermode='y',
-                    clickmode = 'event+select',
-                    showlegend=True,
-                    #showScale=True,
-                    uirevision = 24,
-                    mapbox=dict(
-                        accesstoken=mapbox_access_token,
-                        bearing=0,
-                        center=dict(
-                            lat=-35,
-                            lon=138.6
-                        ),
-                        pitch=0,
-                        zoom=9,
-                        #opacity=1,
-                        #style='light'
-                        #style="stamen-terrain",
-                        # layers=dict(
-                        #     opacity = 1.0,
-                        #     visible=True
-                        # ),
-                    ),
-                )
-                }
             ),
 
             
@@ -443,8 +356,8 @@ def filter_time_draw_figure(n_clicks, value):
                 'layout': go.Layout(
                     title='Adelaide Stops',
                     autosize=False,
-                    width = 1000,
-                    height = 900,
+                    width = 900,
+                    height = 800,
                     hovermode='y',
                     clickmode = 'event+select',
                     showlegend=True,
