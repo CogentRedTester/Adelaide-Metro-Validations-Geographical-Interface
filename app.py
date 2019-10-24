@@ -10,7 +10,6 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import json
 from textwrap import dedent as d
 import time
 import codecs, json
