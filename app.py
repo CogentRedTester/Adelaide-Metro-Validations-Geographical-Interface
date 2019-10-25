@@ -2,6 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
+import dash_colorscales
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 import plotly.offline
@@ -34,6 +35,9 @@ stopList = pd.read_csv('../stops.csv')
 metro3.VALIDATION_DATE = pd.to_datetime(metro3['VALIDATION_DATE'])
 metro3.USAGE += 4
 
+weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 #print(metro3[0]['VALIDATION_DATE'].date())
 
 #metro = metro.drop(14)
@@ -45,7 +49,9 @@ metro3.USAGE += 4
 
 
 
-colourscale = [
+colourscale = px.colors.sequential.Viridis
+'''
+= [
         [0, 'rgb(250, 250, 250)'],        #0
         [1.0/10000.0, 'rgb(200, 200, 200)'], #10
         [1.0/1000.0, 'rgb(150, 150, 150)'],  #100
@@ -54,7 +60,7 @@ colourscale = [
         [1, 'rgb(0, 0, 0)']             #100000
 
     ]
-
+'''
 
 #optionsD = np.array([[metro.stop_name], [metro.USAGE]])
 
@@ -75,6 +81,7 @@ route_options = [{'label': i, 'value': i} for i in route_list] #list comprehensi
 
 
 date_list = pd.Series(metro3.VALIDATION_DATE.unique())
+date_list_original = pd.Series(metro3.VALIDATION_DATE.unique())
 #dates = pd.to_datetime()
 
 filterOne = metro3
@@ -92,18 +99,7 @@ def unixToDatetime(unix):
     ''' Convert unix timestamp to datetime. '''
     return pd.to_datetime(unix,unit='s')
 
-def getMarks(Nth=120):
-    ''' Returns the marks for labeling. 
-        Every Nth value will be used.
-    '''
 
-    result = {}
-    for i in range(len(date_list)):
-        if(i%Nth == 1):
-            # Append value to dict
-            result[i] = str(date_list[i].date())
-
-    return result
 
 '''
                 min = unixTimeMillis(daterange.min()),
@@ -122,7 +118,7 @@ app.layout = html.Div([
     html.Div(className="row", children =[
 
         html.Div([
-
+            html.Label('Filter Vehicle Type'),
             dcc.RadioItems(
                 id = 'vehicle_selector',
                 options = [
@@ -135,42 +131,44 @@ app.layout = html.Div([
                 labelStyle={'display': 'inline-block'},
             ),
 
+            html.Label('Filter Route'),
             dcc.Dropdown(
                 id = 'route_filter',
                 options= route_options,
                 multi=True,
             ),
 
-            html.Div([
-                dcc.Input(id='input-1-state', type='text', placeholder='AE Name', style={'text-align': 'center'}, value=''),
-                dcc.DatePickerRange(
-                    id='date-picker-range',
-                    min_date_allowed = metro3.VALIDATION_DATE.min(),
-                    max_date_allowed = metro3.VALIDATION_DATE.max(),
-                    start_date = metro3.VALIDATION_DATE.min(),
-                    end_date = metro3.VALIDATION_DATE.max(),
-                    number_of_months_shown = 6,
-                    day_size = 30,
-                    initial_visible_month = metro3.VALIDATION_DATE.min(),
-                    display_format = 'DD/MM/YY',
-                    clearable = True,
-                    start_date_placeholder_text= 'Select a date',
-                    end_date_placeholder_text='Select a date'
-                ),
-                html.Button(id='submit-button', n_clicks=0, children='Submit')
-            ]),
-
+            html.Label('Filter Time Range'),
             dcc.RangeSlider(
                 id='date_slider',
                 min = 0,
                 max = date_list.index.max(),
                 value = [0, date_list.index.max()],
-                marks = getMarks(),
-                #updatemode = 'drag',
+                #marks = getMarks(),
+                updatemode = 'drag',
                 allowCross = False,
             ),
 
-            html.Div('', style={'padding': 10}),
+            html.Div('', style={'padding': 12}),
+
+            html.Div([
+
+                dcc.Loading(
+                    id="loading",
+                    children=[html.Div([
+                        html.Button(id = 'skip_back', n_clicks = 0, children = '<'),
+                        html.Button(id = 'skip_forward', n_clicks = 0, children = '>'),
+                        html.Button(id='submit-button', n_clicks=0, children='Submit')
+                    ])],
+                    type="circle",
+                ),
+
+                html.Pre(id = 'range_text', style={'padding': 20}),
+            ]),
+
+            
+
+            
 
             
 
@@ -178,12 +176,10 @@ app.layout = html.Div([
                 id='metro_density',
             ),
 
-            
-
-            
-
-            html.Pre(id = 'range_text', style={'padding': 10}),
-
+            dash_colorscales.DashColorscales(
+                id = 'colorscale_picker',
+                colorscale = colourscale,
+            )
 
 
 
@@ -211,7 +207,7 @@ app.layout = html.Div([
         id = 'table'
     ),
 
-    html.Div(id='datesList', style={'display': 'none'}, children = ''),
+    html.Div(id='filterOne', style={'display': 'none'}, children = ''),
     html.Div(id='filterTwo', style={'display': 'none'}, children = ''),
     html.Div(id='filterThree', style={'display': 'none'}, children = ''),
 
@@ -226,12 +222,21 @@ def update_slider(start_date, end_date):
     print (start_date)
     print (end_date)
     return [dates[dates == start_date].index[0], dates[dates == end_date].index[0]]
-'''
+
 @app.callback(
     [Output('date-picker-range', 'start_date'), Output('date-picker-range', 'end_date')],
     [Input('date_slider', 'value')])
 def update_start_date(value):
-    return date_list[value[0]], date_list[value[1]]
+    return date_list_original[value[0]], date_list_original[value[1]]
+'''
+
+#loading bar
+@app.callback([Output("submit-button", "children")],
+    [Input("route_filter", "value"), Input('route_filter', 'options'), Input('vehicle_selector', 'value'), Input('colorscale_picker', 'colorscale')])
+def input_triggers_nested(value, options, value2, colorscale):
+    time.sleep(1)
+    return 'Submit'
+
 
 
 @app.callback(
@@ -252,8 +257,9 @@ def vehicle_selector(value):
    
 
 #filters the dataset to just use the routes selected in the searchbox/dropdown
+#filters the data by date for the range slider
 @app.callback(
-    [Output('date_slider', 'min'), Output('date_slider','max'), Output('date_slider', 'value')],
+    Output('date_slider', 'marks'),
     [Input('route_filter', 'value'), Input('route_filter', 'options')])
 def filter_routes(route_value, route_options):
     print("filter updated")
@@ -262,6 +268,7 @@ def filter_routes(route_value, route_options):
     global filterOne
     global filterTwo
     global date_list
+    global date_list_original
     
 
     if ((route_value is None) | (route_value == [])):
@@ -272,19 +279,83 @@ def filter_routes(route_value, route_options):
     
     date_list = pd.Series(filterTwo.VALIDATION_DATE.unique())
 
-    return 0, date_list.index.max(), [0, date_list.index.max()]
+    minIndex = date_list_original[date_list_original == date_list.min()].index[0]
+    maxIndex = date_list_original[date_list_original == date_list.max()].index[0]
 
+    lastLabel = 0
+    result = {}
+    for i in range(len(date_list_original)):
+        if (date_list == date_list_original[i]).any():
+            # Append value to dict
+            result[i] = ''
+
+            if ((lastLabel == 0) & (i != 0)):
+                result[i] = str(date_list_original[i].day) + "/" + str(date_list_original[i].month)
+                lastLabel = i + 1
+            elif (i - lastLabel > 135):
+                result[i] = str(date_list_original[i].day) + "/" + str(date_list_original[i].month)
+                lastLabel = i + 1
+            elif (date_list_original[i].dayofyear == 1):
+                result[i] = str(date_list_original[i].year)
+                lastLabel = i + 1
+            else:
+                if ((date_list_original[i].month % 3 == 1) & (date_list_original[i].day == 1)):
+                    result[i] = months[date_list_original[i].month - 1]
+                    lastLabel = i + 1
+
+    return  result
+
+#buttons for mvoing the date range
+@app.callback(
+    Output('date_slider', 'value'),
+    [Input('skip_forward', 'n_clicks'), Input('skip_back', 'n_clicks')],
+    [State('date_slider', 'value'), State('date_slider', 'min'), State('date_slider', 'max')])
+def skip_forward(n_clicks, n_clicks2, value, min, max):
+    date_range = 1 + value[1] - value[0]
+
+    ctx = dash.callback_context
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if ((n_clicks == 0) & (n_clicks2 == 0)):
+        return value
+
+    if (button_id == 'skip_forward'):
+        value[0] += date_range
+        value[1] += date_range
+    elif (button_id == 'skip_back'):
+        value[0] = value[0] - date_range
+        value[1] = value[1] - date_range
+
+    if (value[0] < min):
+        value[0] = min
+    elif (value[0] > max):
+        value[0] = max
+
+    if (value[1] > max):
+        value[1] = max
+    elif (value[1] < min):
+        value[1] = min
+
+    return value
+
+#text showing the date of the current range
 @app.callback(
     Output('range_text', 'children'),
     [Input('date_slider', 'value')])
 def print_slider_range(value):
-    return str(date_list[value[0]].date()) + " " + str(date_list[value[1]].date())
+    global weekdays
+    global months
+
+    min = str(weekdays[date_list_original[value[0]].dayofweek]) + " " + str(date_list_original[value[0]].day) + " " + str(months[date_list_original[value[0]].month - 1]) + " " + str(date_list_original[value[0]].year)
+    max = str(weekdays[date_list_original[value[1]].dayofweek]) + " " + str(date_list_original[value[1]].day) + " " + str(months[date_list_original[value[1]].month - 1]) + " " + str(date_list_original[value[1]].year)
+
+    return  min + " - " + max
 
 @app.callback(
     Output('metro_density', 'figure'),
     [Input('submit-button', 'n_clicks')],
-    [State('date_slider', 'value')])
-def filter_time_draw_figure(n_clicks, value):
+    [State('colorscale_picker', 'colorscale'), State('date_slider', 'value')])
+def filter_time_draw_figure(n_clicks, colorscale, value):
     global filterTwo
     global filterThree
     global filterFour
@@ -294,7 +365,7 @@ def filter_time_draw_figure(n_clicks, value):
 
     oneDay = pd.Timedelta(days=1)
 
-    filterThree = filterTwo[(filterTwo['VALIDATION_DATE'] > (date_list[value[0]] - oneDay)) & (filterTwo['VALIDATION_DATE'] < (date_list[value[1]] + oneDay))]
+    filterThree = filterTwo[(filterTwo['VALIDATION_DATE'] > (date_list_original[value[0]] - oneDay)) & (filterTwo['VALIDATION_DATE'] < (date_list_original[value[1]] + oneDay))]
 
     df = filterThree.groupby('stop_id').sum()[['USAGE']].reset_index()
     df = pd.merge(df, stopList, how="left", on="stop_id")
@@ -313,7 +384,7 @@ def filter_time_draw_figure(n_clicks, value):
             lon = site_lon,
             z = usage,
             autocolorscale = False,
-            colorscale = 'Viridis',
+            colorscale = colorscale,
             #colorscale = colourscale,
             ###
             #colorbar = dict(
@@ -327,7 +398,7 @@ def filter_time_draw_figure(n_clicks, value):
             hoverinfo = 'text+z',
             name = "heatmap",
             zmin = 100,
-            zmax = 200000,
+            zmax = 20000,
         )
 
     t2 = go.Scattermapbox(
@@ -400,7 +471,7 @@ def display_click_data(clickData):
     Output('stop_info', 'figure'),
     [Input('metro_density', 'clickData')])
 def selected_stop_graph(clickData):
-    data = metro3[metro3['stop_id'] == clickData['points'][0]['meta']].copy()
+    data = filterThree[filterThree['stop_id'] == clickData['points'][0]['meta']].copy()
     #data.USAGE = data.USAGE + 4
     data = data.groupby('ROUTE_CODE').sum()[['USAGE']].reset_index()
     fig = go.Figure([go.Bar(x = data.index, y = data.USAGE, text = data.USAGE, textposition = 'auto')])
