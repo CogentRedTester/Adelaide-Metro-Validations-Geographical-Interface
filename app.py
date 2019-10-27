@@ -88,6 +88,7 @@ filterOne = metro3
 filterTwo = filterOne
 filterThree = filterTwo
 filterFour = filterThree
+filterFive = filterFour
 
 
 #following code taken from https://stackoverflow.com/questions/51063191/date-slider-with-plotly-dash-does-not-work/51099170#51099170
@@ -138,6 +139,20 @@ app.layout = html.Div([
                 multi=True,
             ),
 
+            html.Label('Filter by Validation Medium'),
+            dcc.RadioItems(
+                id = 'medium_selector',
+                options = [
+                {'label' : 'Both |', 'value' : 0},
+                {'label' : 'Card |', 'value' : 1},
+                {'label' : '% Card |', 'value' : 2},
+                {'label' : 'Ticket |', 'value' : 3},
+                {'label' : '% Ticket', 'value' : 4}
+                ],
+                value = 0,
+                labelStyle = {'display' : 'inline-block'},
+            ),
+
             html.Label('Filter Time Range'),
             dcc.RangeSlider(
                 id='date_slider',
@@ -176,12 +191,16 @@ app.layout = html.Div([
                 id='metro_density',
             ),
 
-            dash_colorscales.DashColorscales(
-                id = 'colorscale_picker',
-                colorscale = colourscale,
-            )
+            dcc.RangeSlider(
+                id = 'color_slider',
+                min = 0,
+                max = 1000000,
+                value = [0, 200000],
+                allowCross = False,
+                updatemode = 'drag',
+            ),
 
-
+            html.Div('', style={'padding': 12}),
 
 
         ], className="six columns"),
@@ -207,7 +226,7 @@ app.layout = html.Div([
         id = 'table'
     ),
 
-    html.Div(id='filterOne', style={'display': 'none'}, children = ''),
+    html.Div(id='filterOne', style={'display': 'none'}, children = 0),
     html.Div(id='filterTwo', style={'display': 'none'}, children = ''),
     html.Div(id='filterThree', style={'display': 'none'}, children = ''),
 
@@ -231,14 +250,15 @@ def update_start_date(value):
 '''
 
 #loading bar
-@app.callback([Output("submit-button", "children")],
-    [Input("route_filter", "value"), Input('route_filter', 'options'), Input('vehicle_selector', 'value'), Input('colorscale_picker', 'colorscale')])
-def input_triggers_nested(value, options, value2, colorscale):
+@app.callback(
+    Output("submit-button", "children"),
+    [Input("route_filter", "value"), Input('route_filter', 'options'), Input('vehicle_selector', 'value'), Input('medium_selector', 'value')])
+def input_triggers_nested(value, options, value2, medium):
     time.sleep(1)
     return 'Submit'
 
 
-
+#vehicle selection filter
 @app.callback(
     Output('route_filter', 'options'),
     [Input('vehicle_selector', 'value')])
@@ -259,16 +279,16 @@ def vehicle_selector(value):
 #filters the dataset to just use the routes selected in the searchbox/dropdown
 #filters the data by date for the range slider
 @app.callback(
-    Output('date_slider', 'marks'),
-    [Input('route_filter', 'value'), Input('route_filter', 'options')])
-def filter_routes(route_value, route_options):
+    Output('filterOne', 'children'),
+    [Input('route_filter', 'value'), Input('route_filter', 'options')],
+    [State('filterOne', 'children')])
+def filter_routes(route_value, route_options, filter1):
     print("filter updated")
     print(route_value)
 
     global filterOne
     global filterTwo
-    global date_list
-    global date_list_original
+
     
 
     if ((route_value is None) | (route_value == [])):
@@ -277,7 +297,28 @@ def filter_routes(route_value, route_options):
         print(filterTwo.head())
         filterTwo = filterOne[filterOne['ROUTE_CODE'].isin(route_value)]
     
-    date_list = pd.Series(filterTwo.VALIDATION_DATE.unique())
+    return filter1 + 1
+
+#metrocard vs ticket selector
+@app.callback(
+    Output('date_slider', 'marks'),
+    [Input('medium_selector', 'value'), Input('filterOne', 'children')])
+def filterByMedium(medium, filter1):
+
+    global filterTwo
+    global filterThree
+    global date_list
+    global date_list_original
+
+    if (medium == 0) | (medium == 4) | (medium == 2):
+        filterThree = filterTwo
+    elif medium == 1:
+        filterThree = filterTwo[filterTwo['MEDIUM_TYPE'] == 1]
+    elif medium == 3:
+        filterThree = filterTwo[filterTwo['MEDIUM_TYPE'] == 3]
+
+
+    date_list = pd.Series(filterThree.VALIDATION_DATE.unique())
 
     minIndex = date_list_original[date_list_original == date_list.min()].index[0]
     maxIndex = date_list_original[date_list_original == date_list.max()].index[0]
@@ -303,7 +344,7 @@ def filter_routes(route_value, route_options):
                     result[i] = months[date_list_original[i].month - 1]
                     lastLabel = i + 1
 
-    return  result
+    return result
 
 #buttons for mvoing the date range
 @app.callback(
@@ -351,26 +392,47 @@ def print_slider_range(value):
 
     return  min + " - " + max
 
+#creating the graph
 @app.callback(
     Output('metro_density', 'figure'),
     [Input('submit-button', 'n_clicks')],
-    [State('colorscale_picker', 'colorscale'), State('date_slider', 'value')])
-def filter_time_draw_figure(n_clicks, colorscale, value):
+    [State('date_slider', 'value'), State('medium_selector', 'value'), State('color_slider', 'value')])
+def filter_time_draw_figure(n_clicks, value, medium, color_value):
     global filterTwo
     global filterThree
     global filterFour
+    global filterFive
     global date_list
 
     date_list = pd.Series(date_list)
 
     oneDay = pd.Timedelta(days=1)
 
-    filterThree = filterTwo[(filterTwo['VALIDATION_DATE'] > (date_list_original[value[0]] - oneDay)) & (filterTwo['VALIDATION_DATE'] < (date_list_original[value[1]] + oneDay))]
+    filterFour = filterThree[(filterThree['VALIDATION_DATE'] > (date_list_original[value[0]] - oneDay)) & (filterThree['VALIDATION_DATE'] < (date_list_original[value[1]] + oneDay))]
 
-    df = filterThree.groupby('stop_id').sum()[['USAGE']].reset_index()
+    df = filterFour.groupby('stop_id').sum()[['USAGE']].reset_index()
     df = pd.merge(df, stopList, how="left", on="stop_id")
 
-    filterFour = df
+    if (medium == 2):
+        cardFiltered = filterFour[filterFour['MEDIUM_TYPE'] == 1]
+        cardFiltered = cardFiltered.groupby('stop_id').sum()[['USAGE']].reset_index()
+        cardFiltered = pd.DataFrame(cardFiltered).rename(columns={'USAGE':'USAGE_CARD'})
+        df = pd.merge(df, cardFiltered, how = 'left', on = 'stop_id')
+        print(df.head())
+        df.USAGE_CARD = df.USAGE_CARD.replace('N/A', 0)
+        df.USAGE = (df.USAGE_CARD / df.USAGE) * 100
+        print(df.head())
+    elif (medium == 4):
+        ticketFiltered = filterFour[filterFour['MEDIUM_TYPE'] == 3]
+        ticketFiltered = ticketFiltered.groupby('stop_id').sum()[['USAGE']].reset_index()
+        ticketFiltered = pd.DataFrame(ticketFiltered).rename(columns={'USAGE':'USAGE_TICKET'})
+        df = pd.merge(df, ticketFiltered, how = 'left', on = 'stop_id')
+        print(df.head())
+        df.USAGE_TICKET = df.USAGE_TICKET.replace('N/A', 0)
+        df.USAGE = (df.USAGE_TICKET / df.USAGE) * 100
+
+    
+    filterFive = df
 
     site_lat = df.stop_lat
     site_lon = df.stop_lon
@@ -379,29 +441,66 @@ def filter_time_draw_figure(n_clicks, colorscale, value):
     stop_ids = df.stop_id
     hover = locations_name + " | Usage: " + usage.astype(str)
 
-    t1 = go.Densitymapbox(
+
+    showRatio = False
+    showDensity = True;
+
+    if (medium == 2) | (medium == 4):
+        showRatio = True
+        showDensity = False
+
+
+    t1 = go.Scattermapbox(
+        lat=site_lat,
+        lon=site_lon,
+        meta = stop_ids,
+        mode='markers',
+        opacity = 1,
+        visible = showRatio,
+        unselected = dict(
+            marker = dict(
+                opacity = 0.3,
+            )
+        ),
+        marker=dict(
+            size = 25,
+            color=usage,
+            opacity = 0.3,
+            cmax=100,
+            cmin=0,
+            colorscale = colourscale,
+            #autocolorscale = True,
+            showscale = True,
+            colorbar = dict(
+                len = 0.8,
+            ),
+        ),
+        
+    )
+
+    t2 = go.Densitymapbox(
             lat = site_lat,
             lon = site_lon,
             z = usage,
             autocolorscale = False,
-            colorscale = colorscale,
-            #colorscale = colourscale,
-            ###
-            #colorbar = dict(
+            colorscale = colourscale,
+            visible = showDensity,
+            colorbar = dict(
+                len = 0.9,
                # tick0 = 0,
               #  tickmode = 'array',
              #   tickvals = [0, 1000, 10000, 100000]
-            #),
+            ),
             radius = 20,
             meta = locations_name,
             text = locations_name,
             hoverinfo = 'text+z',
             name = "heatmap",
-            zmin = 100,
-            zmax = 20000,
+            zmin = color_value[0],
+            zmax = color_value[1],
         )
 
-    t2 = go.Scattermapbox(
+    t3 = go.Scattermapbox(
                     lat=site_lat,
                     lon=site_lon,
                     meta = stop_ids,
@@ -416,6 +515,11 @@ def filter_time_draw_figure(n_clicks, colorscale, value):
                         colorscale = 'Viridis',
                         #showscale = True,
                     ),
+                    unselected = dict(
+                        marker = dict(
+                            opacity = 0.7,
+                        )
+                    ),
                     hovertext=hover,
                     hoverinfo = "text",
                     #hoverinfo="text",
@@ -423,12 +527,17 @@ def filter_time_draw_figure(n_clicks, colorscale, value):
                     name="stops",
                 )
     fig = {
-                'data': [t1, t2],
+                'data': [t1, t2, t3],
                 'layout': go.Layout(
-                    title='Adelaide Stops',
                     autosize=False,
                     width = 900,
-                    height = 800,
+                    height = 700,
+                    margin = dict(
+                        t = 15,
+                        b = 50,
+                        r = 50,
+                        l = 10
+                    ),
                     hovermode='y',
                     clickmode = 'event+select',
                     showlegend=True,
@@ -450,13 +559,14 @@ def filter_time_draw_figure(n_clicks, colorscale, value):
 
     return fig
 
+
 @app.callback(
     [Output('table', 'columns'), Output('table', 'data')],
     [Input('metro_density', 'figure')])
 def createTable(n_clicks):
-    global filterFour
-    columns = [{"name": i, "id": i} for i in filterFour.columns]
-    return columns, filterFour.to_dict('records')
+    global filterFive
+    columns = [{"name": i, "id": i} for i in filterFive.columns]
+    return columns, filterFive.to_dict('records')
 
 
 #creates the point info text box
@@ -471,7 +581,7 @@ def display_click_data(clickData):
     Output('stop_info', 'figure'),
     [Input('metro_density', 'clickData')])
 def selected_stop_graph(clickData):
-    data = filterThree[filterThree['stop_id'] == clickData['points'][0]['meta']].copy()
+    data = filterFour[filterFour['stop_id'] == clickData['points'][0]['meta']].copy()
     #data.USAGE = data.USAGE + 4
     data = data.groupby('ROUTE_CODE').sum()[['USAGE']].reset_index()
     fig = go.Figure([go.Bar(x = data.index, y = data.USAGE, text = data.USAGE, textposition = 'auto')])
