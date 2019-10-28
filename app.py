@@ -265,23 +265,6 @@ app.layout = html.Div([
 
 ])
 
-'''
-@app.callback(
-    Output('date_slider', 'value'),
-    [Input('date-picker-range', 'start_date'),
-    Input('date-picker-range', 'end_date')])
-def update_slider(start_date, end_date):
-    print (start_date)
-    print (end_date)
-    return [dates[dates == start_date].index[0], dates[dates == end_date].index[0]]
-
-@app.callback(
-    [Output('date-picker-range', 'start_date'), Output('date-picker-range', 'end_date')],
-    [Input('date_slider', 'value')])
-def update_start_date(value):
-    return date_list_original[value[0]], date_list_original[value[1]]
-'''
-
 #loading bar
 @app.callback(
     Output("submit-button", "children"),
@@ -292,6 +275,7 @@ def input_triggers_nested(value, options, value2, medium):
 
 
 #vehicle selection filter
+#sets the options for the route dropdown
 @app.callback(
     Output('route_filter', 'options'),
     [Input('vehicle_selector', 'value')])
@@ -310,7 +294,7 @@ def vehicle_selector(value):
    
 
 #filters the dataset to just use the routes selected in the searchbox/dropdown
-#filters the data by date for the range slider
+#increments the integer in filterOne which triggers the medium callback to run
 @app.callback(
     Output('filterOne', 'children'),
     [Input('route_filter', 'value'), Input('route_filter', 'options')],
@@ -332,6 +316,7 @@ def filter_routes(route_value, route_options, filter1):
     return filter1 + 1
 
 #metrocard vs ticket selector
+#as this is the last filter before the slider it also finds the valid dates to populate the slider
 @app.callback(
     Output('date_slider', 'marks'),
     [Input('medium_selector', 'value'), Input('filterOne', 'children')])
@@ -355,6 +340,10 @@ def filterByMedium(medium, filter1):
     minIndex = date_list_original[date_list_original == date_list.min()].index[0]
     maxIndex = date_list_original[date_list_original == date_list.max()].index[0]
 
+    #algorithm to set labels under the slider
+    #adds 4 per year, with the first replacing Jan with the year.
+    #always adds a label for the first date in the set
+    #if more than 135 days go by without any labels then the next valid day will have a label no matter what
     lastLabel = 0
     result = {}
     for i in range(len(date_list_original)):
@@ -411,7 +400,7 @@ def skip_forward(n_clicks, n_clicks2, value, min, max):
 
     return value
 
-#text showing the date of the current range
+#text showing the date of the current date range
 @app.callback(
     Output('range_text', 'children'),
     [Input('date_slider', 'value')])
@@ -425,7 +414,7 @@ def print_slider_range(value):
     return  "### " + min + " - " + max
 
 
-#colour slider marks
+#creates colour slider marks below the slider ends
 @app.callback(
     Output('color_slider', 'marks'),
     [Input('color_slider', 'value')],
@@ -615,7 +604,7 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value):
 
     return fig
 
-
+#creates the stop list table at the bottom of the page
 @app.callback(
     [Output('table', 'columns'), Output('table', 'data')],
     [Input('metro_density', 'figure')])
@@ -625,7 +614,7 @@ def createTable(n_clicks):
     return columns, filterFive.to_dict('records')
 
 
-#creates the point info text box
+#creates the clicked stop info text
 @app.callback(
     [Output('stop_name', 'children'), Output('stop_description', 'children'), Output('stop_id', 'children'),
     Output('total_usage', 'children'), Output('filtered_usage', 'children')],
@@ -655,7 +644,7 @@ def route_composition_graph(clickData):
         stop = clickData['points'][0]['meta']
 
     data = filterFour[filterFour['stop_id'] == stop].copy()
-    #data.USAGE = data.USAGE + 4
+
     data = data.groupby('ROUTE_CODE').sum()[['USAGE']].reset_index()
     fig = go.Figure([go.Bar(x = data.index, y = data.USAGE, text = data.USAGE, textposition = 'auto')])
     fig.update_layout(
@@ -671,6 +660,7 @@ def route_composition_graph(clickData):
         )
     return fig
 
+#draws the line graph of usage per route
 @app.callback(
     Output('line_graph', 'figure'),
     [Input('metro_density', 'clickData')])
@@ -684,15 +674,15 @@ def route_line_graph(clickData):
 
     routes = data.ROUTE_CODE.unique()
 
-    traces = {}
-
     fig = go.Figure()
+
+    #creates traces for each route at the stop and adds them to the figure
     for route in routes:
         route_data = data[data['ROUTE_CODE'] == route].groupby('VALIDATION_DATE').sum()[['USAGE']]
+        
+        #filling in extra dates as 0 so that the line connecting the points does not float above the x axis
         route_data = route_data.asfreq('D')
-
         route_data = route_data.reset_index()
-
         route_data.USAGE.fillna(0, inplace=True)
         
         trace = go.Scatter(
