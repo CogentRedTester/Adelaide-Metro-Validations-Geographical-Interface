@@ -77,8 +77,17 @@ colourscale2 = {'#440154',
  '#fde725'}
 
 route_list = metro3.ROUTE_CODE.unique()
+#stop_list = pd.DataFrame(metro3.stop_id.unique())
+#stop_list = stop_list.rename(columns={stop_list.columns[0]:'stop_id'})
+
 route_options = [{'label': i, 'value': i} for i in route_list] #list comprehension
 
+#stopList = pd.merge(stop_list, stopList, how="left", on="stop_id")
+
+#stopList.stop_name.fillna(stopList.stop_id, inplace=True)
+
+#stop_options = [{'label': i, 'value': j} for i in stopList.stop_name.unique() for j in stopList.stop_id.unique()]
+#print('list comprehension complete')
 
 date_list = pd.Series(metro3.VALIDATION_DATE.unique())
 date_list_original = pd.Series(metro3.VALIDATION_DATE.unique())
@@ -119,6 +128,11 @@ app.layout = html.Div([
     html.Div(className="row", children =[
 
         html.Div([
+
+            dcc.Markdown('''
+                ### Filter Heatmap
+                '''),
+
             html.Label('Filter Vehicle Type'),
             dcc.RadioItems(
                 id = 'vehicle_selector',
@@ -154,17 +168,19 @@ app.layout = html.Div([
             ),
 
             html.Label('Filter Time Range'),
-            dcc.RangeSlider(
-                id='date_slider',
-                min = 0,
-                max = date_list.index.max(),
-                value = [0, date_list.index.max()],
-                #marks = getMarks(),
-                updatemode = 'drag',
-                allowCross = False,
-            ),
 
-            html.Div('', style={'padding': 12}),
+            html.Div([
+                dcc.RangeSlider(
+                    id='date_slider',
+                    min = 0,
+                    max = date_list.index.max(),
+                    value = [0, date_list.index.max()],
+                    #marks = getMarks(),
+                    updatemode = 'drag',
+                    allowCross = False,
+                    
+                )
+            ], style={'marginLeft': 10, 'marginBottom': 25}),
 
             html.Div([
 
@@ -178,7 +194,7 @@ app.layout = html.Div([
                     type="circle",
                 ),
 
-                html.Pre(id = 'range_text', style={'padding': 20}),
+                dcc.Markdown(id = 'range_text'),
             ]),
 
             
@@ -191,16 +207,21 @@ app.layout = html.Div([
                 id='metro_density',
             ),
 
-            dcc.RangeSlider(
-                id = 'color_slider',
-                min = 0,
-                max = 1000000,
-                value = [0, 200000],
-                allowCross = False,
-                updatemode = 'drag',
-            ),
+            html.Label('Change colorscale range'),
+            html.Div([
+                dcc.RangeSlider(
+                    id = 'color_slider',
+                    min = 0,
+                    max = 1000000,
+                    value = [0, 200000],
+                    allowCross = False,
+                    updatemode = 'drag',
+                )
+            ], style={'marginLeft': 5, 'marginBottom': 25}),
 
-            html.Div('', style={'padding': 12}),
+            html.Pre('stops with validations below the minimum will have no color, stops above the max will be capped'),
+
+            
 
 
         ], className="six columns"),
@@ -209,13 +230,25 @@ app.layout = html.Div([
         html.Div([
             #html.H3('Column 1'),
             dcc.Markdown(d("""
-                **Click Data**
+                ### Detailed Stop Info
 
-                Click on points in the graph.
+                Click on points on the map to select stops.
             """)),
-            html.Pre(id='click-data', style=styles['pre']),
+
+            html.Div('', style={'padding': 12}),
+
+            dcc.Markdown(id = 'stop_name'),
+            html.P(id = 'stop_description'),
+            html.P(id = 'stop_id'),
+            html.P(id = 'total_usage'),
+            html.P(id = 'filtered_usage'),
+
             dcc.Graph(
-                id='stop_info'
+                id='route_composition'
+            ),
+
+            dcc.Graph(
+                id = 'line_graph'
             )
         ], className="six columns"),
 
@@ -294,7 +327,6 @@ def filter_routes(route_value, route_options, filter1):
     if ((route_value is None) | (route_value == [])):
         filterTwo = filterOne
     else:
-        print(filterTwo.head())
         filterTwo = filterOne[filterOne['ROUTE_CODE'].isin(route_value)]
     
     return filter1 + 1
@@ -390,7 +422,26 @@ def print_slider_range(value):
     min = str(weekdays[date_list_original[value[0]].dayofweek]) + " " + str(date_list_original[value[0]].day) + " " + str(months[date_list_original[value[0]].month - 1]) + " " + str(date_list_original[value[0]].year)
     max = str(weekdays[date_list_original[value[1]].dayofweek]) + " " + str(date_list_original[value[1]].day) + " " + str(months[date_list_original[value[1]].month - 1]) + " " + str(date_list_original[value[1]].year)
 
-    return  min + " - " + max
+    return  "### " + min + " - " + max
+
+
+#colour slider marks
+@app.callback(
+    Output('color_slider', 'marks'),
+    [Input('color_slider', 'value')],
+    [State('color_slider', 'min'), State('color_slider', 'max')])
+def update_color_slider_marks(value, min, max):
+    result = {}
+
+    result[value[0]] = str(value[0])
+    
+    if (value[1] - value[0] > 30000):
+        result[value[1]] = str(value[1])
+    else:
+        result[value[1] + (30000 - (value[1] - value[0]))] = str(value[1])
+
+    return result
+
 
 #creating the graph
 @app.callback(
@@ -520,6 +571,11 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value):
                             opacity = 0.7,
                         )
                     ),
+                    selected = dict(
+                        marker = dict(
+                            color = 'red'
+                        )
+                    ),
                     hovertext=hover,
                     hoverinfo = "text",
                     #hoverinfo="text",
@@ -571,17 +627,34 @@ def createTable(n_clicks):
 
 #creates the point info text box
 @app.callback(
-    Output('click-data', 'children'),
+    [Output('stop_name', 'children'), Output('stop_description', 'children'), Output('stop_id', 'children'),
+    Output('total_usage', 'children'), Output('filtered_usage', 'children')],
     [Input('metro_density', 'clickData')])
-def display_click_data(clickData):
-    return json.dumps(clickData, indent=2)
+def display_click_data(clickData):    
+    if clickData is None:
+        stopID = 6665
+    else:
+        stopID = clickData['points'][0]['meta']
+
+    stop = stopList[stopList['stop_id'] == stopID].reset_index()
+    name = '**' + stop.iloc[0]['stop_name'] + '**'
+    description = 'Stop desc: ' + stop.iloc[0]['stop_desc']
+    total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
+    filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
+
+    return name, description, 'Stop ID: ' + str(stopID), total_usage, filtered_usage
 
 #creates the per stop route bar graph
 @app.callback(
-    Output('stop_info', 'figure'),
+    Output('route_composition', 'figure'),
     [Input('metro_density', 'clickData')])
-def selected_stop_graph(clickData):
-    data = filterFour[filterFour['stop_id'] == clickData['points'][0]['meta']].copy()
+def route_composition_graph(clickData):
+    if clickData is None:
+        stop = 6665
+    else:
+        stop = clickData['points'][0]['meta']
+
+    data = filterFour[filterFour['stop_id'] == stop].copy()
     #data.USAGE = data.USAGE + 4
     data = data.groupby('ROUTE_CODE').sum()[['USAGE']].reset_index()
     fig = go.Figure([go.Bar(x = data.index, y = data.USAGE, text = data.USAGE, textposition = 'auto')])
@@ -593,11 +666,56 @@ def selected_stop_graph(clickData):
                 tickvals = data.index,
                 ticktext = data.ROUTE_CODE),
         title=go.layout.Title(
-                text="Routes at " + clickData['points'][0]['hovertext'],
+                text="Filtered Usage by Route",
                 )
         )
     return fig
 
+@app.callback(
+    Output('line_graph', 'figure'),
+    [Input('metro_density', 'clickData')])
+def route_line_graph(clickData):
+    if clickData is None:
+        stop = 6665
+    else:
+        stop = clickData['points'][0]['meta']
+
+    data = filterFour[filterFour['stop_id'] == stop].copy()
+
+    routes = data.ROUTE_CODE.unique()
+
+    traces = {}
+
+    fig = go.Figure()
+    for route in routes:
+        route_data = data[data['ROUTE_CODE'] == route].groupby('VALIDATION_DATE').sum()[['USAGE']]
+        route_data = route_data.asfreq('D')
+
+        route_data = route_data.reset_index()
+
+        route_data.USAGE.fillna(0, inplace=True)
+        
+        trace = go.Scatter(
+            x = route_data.VALIDATION_DATE,
+            y = route_data.USAGE,
+            name = route,
+            marker = dict(
+                line = dict(
+                    width = 1,
+                )
+            )
+        )
+        fig.add_trace(trace)
+
+    fig.update_layout(
+        title_text = 'Filtered Route Usage Over Time',
+        xaxis_rangeslider_visible=True,
+        width = 900,
+        height = 450,
+        showlegend = True,
+    )
+
+    return fig
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
