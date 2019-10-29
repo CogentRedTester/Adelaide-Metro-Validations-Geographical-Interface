@@ -33,6 +33,7 @@ metro3 = pd.read_csv('../2016-2018_Metro_sorted_removed_columns.csv')
 stopList = pd.read_csv('../stops_removed_columns.csv')
 
 metro3.stop_id.fillna(-1, inplace = True)
+metro3.ROUTE_CODE.fillna('N/A', inplace = True)
 
 metro3.VALIDATION_DATE = pd.to_datetime(metro3['VALIDATION_DATE'])
 
@@ -98,7 +99,7 @@ filterOne = metro3
 filterTwo = filterOne
 filterThree = filterTwo
 filterFour = filterThree
-filterFive = filterFour
+filterFive = stopList
 
 app.layout = html.Div([
     
@@ -222,8 +223,11 @@ app.layout = html.Div([
             dcc.Markdown(id = 'stop_name'),
             html.P(id = 'stop_description'),
             html.P(id = 'stop_id'),
+            html.P(id = 'stop_coords'),
+            html.P(id = 'stop_url'),
             html.P(id = 'total_usage'),
-            html.P(id = 'filtered_usage'),
+            html.P(id = 'stop_numbers'),
+            html.P(id = 'unknown_validations'),
 
             dcc.Graph(
                 id='route_composition'
@@ -283,7 +287,6 @@ def vehicle_selector(value):
     [State('filterOne', 'children')])
 def filter_routes(route_value, route_options, filter1):
     print("filter updated")
-    print(route_value)
 
     global filterOne
     global filterTwo
@@ -457,16 +460,13 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
         cardFiltered = cardFiltered.groupby('stop_id').sum()[['USAGE']].reset_index()
         cardFiltered = pd.DataFrame(cardFiltered).rename(columns={'USAGE':'USAGE_CARD'})
         df = pd.merge(df, cardFiltered, how = 'left', on = 'stop_id')
-        print(df.head())
         df.USAGE_CARD = df.USAGE_CARD.replace('N/A', 0)
         df.USAGE = (df.USAGE_CARD / df.USAGE) * 100
-        print(df.head())
     elif (medium == 4):
         ticketFiltered = filterFour[filterFour['MEDIUM_TYPE'] == 3]
         ticketFiltered = ticketFiltered.groupby('stop_id').sum()[['USAGE']].reset_index()
         ticketFiltered = pd.DataFrame(ticketFiltered).rename(columns={'USAGE':'USAGE_TICKET'})
         df = pd.merge(df, ticketFiltered, how = 'left', on = 'stop_id')
-        print(df.head())
         df.USAGE_TICKET = df.USAGE_TICKET.replace('N/A', 0)
         df.USAGE = (df.USAGE_TICKET / df.USAGE) * 100
 
@@ -559,11 +559,6 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
                             opacity = 0.7,
                         )
                     ),
-                    selected = dict(
-                        marker = dict(
-                            color = 'red'
-                        )
-                    ),
                     hovertext=hover,
                     hoverinfo = "text",
                     #hoverinfo="text",
@@ -628,31 +623,54 @@ def selectStop(clickData):
 #creates the clicked stop info text
 @app.callback(
     [Output('stop_name', 'children'), Output('stop_description', 'children'), Output('stop_id', 'children'),
-    Output('total_usage', 'children'), Output('filtered_usage', 'children')],
+    Output('total_usage', 'children'), Output('stop_coords', 'children'),
+    Output('stop_url', 'children'), Output('stop_numbers', 'children'), Output('unknown_validations', 'children')],
     [Input('stop_dropdown', 'value'), Input('GraphUpdated', 'children')])
-def display_click_data(stopID, graph):    
-    if (stopID == '') | (stopID is None):
+def display_click_data(stopID, graph):
+    global filterFive
+    global filterFour
+
+    if stopID is not None:
+        stop = filterFive[filterFive['stop_id'] == stopID].reset_index()
+        if (len(stop) < 1):
+            globalStats = True
+        else:
+            globalStats = False
+    else:
+        globalStats = True
+
+    if (stopID == '') | (stopID is None) | globalStats:
         name = ''
-        stopID = 'none selected'
-        description = 'Stats for current filter:'
+        stopID = 'No stops selected'
+        description = 'Global stats for current filter:'
         total_usage = 'Total usage: ' + str(int(metro3['USAGE'].sum()))
         filtered_usage = 'Filtered usage: ' + str(int(filterFour['USAGE'].sum()))
-    elif (stopID == -1):
-        stop = filterFive[filterFive['stop_id'] == stopID].reset_index()
-        name = ""
-        description = 'Stop desc: ' + str(stop.iloc[0]['stop_desc'])
-        total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
-        filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
-        stopID = 'N/A'
-    else:
-        stop = filterFive[filterFive['stop_id'] == stopID].reset_index()
-        #name = '**' + stop.iloc[0]['stop_name'] + '**'
-        name = ""
-        description = 'Stop desc: ' + str(stop.iloc[0]['stop_desc'])
-        total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
-        filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
+        coords = ''
+        parent = ''
+        url = ''
+        stopNumbers = "Number of stops found with current filters: " + str(len(filterFive)) + "   |   Number of unknown stops: " + str(filterFive.stop_lat.isnull().sum())
+        unknown_validations = ''
 
-    return name, description, 'Stop ID: ' + str(stopID), total_usage, filtered_usage
+        if (graph != 0):
+            unknown_validations = "Number of validations missing from heatmap: " + str(filterFive[filterFive['stop_lat'].isnull()]['USAGE'].sum())
+
+    else:
+        name = ""
+        description = 'Stop desc: ' + str(stop.iloc[0]['stop_desc'])
+        total_usage = 'Total usage of stop: ' + str(metro3[metro3['stop_id'] == stopID]['USAGE'].sum())
+        filtered_usage = 'Filtered usage of stop: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
+        coords = "Lat: " + str(stop.iloc[0]['stop_lat']) + "   |   Lon: " + str(stop.iloc[0]['stop_lon'])
+        url = "URL: " + str(stop.iloc[0]['stop_url'])
+        parent = "Parent station: " + str(stop.iloc[0]['parent_station'])
+        stopNumbers = ''
+        unknown_validations = ''
+
+        if (stopID == -1):
+            stopID = 'N/A'
+
+        stopID = "Stop ID: " + str(stopID) + "   |   Stop Code: " + str(stop.iloc[0]['stop_code']) + "   |   " + parent
+
+    return name, description, stopID, total_usage + "   |   " + filtered_usage, coords, url, stopNumbers, unknown_validations
 
 #creates the per stop route bar graph
 @app.callback(
