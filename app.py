@@ -286,12 +286,8 @@ def vehicle_selector(value):
     [Input('route_filter', 'value'), Input('route_filter', 'options')],
     [State('filterOne', 'children')])
 def filter_routes(route_value, route_options, filter1):
-    print("filter updated")
-
     global filterOne
     global filterTwo
-
-    
 
     if ((route_value is None) | (route_value == [])):
         filterTwo = filterOne
