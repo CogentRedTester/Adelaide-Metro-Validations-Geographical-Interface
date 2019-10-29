@@ -29,11 +29,12 @@ styles = {
 }
 
 #metro = pd.read_csv('stops_3Dates.csv')
-metro3 = pd.read_csv('../2016-2018_Metro_data_sorted_and_cleaned.csv').rename(columns={'GTFS_ID':'stop_id'})
-stopList = pd.read_csv('../stops.csv')
+metro3 = pd.read_csv('../2016-2018_Metro_sorted_removed_columns.csv')
+stopList = pd.read_csv('../stops_removed_columns.csv')
+
+metro3.stop_id.fillna(-1, inplace = True)
 
 metro3.VALIDATION_DATE = pd.to_datetime(metro3['VALIDATION_DATE'])
-metro3.USAGE += 4
 
 weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -99,30 +100,6 @@ filterThree = filterTwo
 filterFour = filterThree
 filterFive = filterFour
 
-
-#following code taken from https://stackoverflow.com/questions/51063191/date-slider-with-plotly-dash-does-not-work/51099170#51099170
-def unixTimeMillis(dt):
-    ''' Convert datetime to unix timestamp '''
-    return int(time.mktime(dt.timetuple()))
-
-def unixToDatetime(unix):
-    ''' Convert unix timestamp to datetime. '''
-    return pd.to_datetime(unix,unit='s')
-
-
-
-'''
-                min = unixTimeMillis(daterange.min()),
-                max = unixTimeMillis(daterange.max()),
-                value = [unixTimeMillis(daterange.min()),
-                         unixTimeMillis(daterange.max())],
-                marks=getMarks(daterange.min(),
-                            daterange.max()),
-                            '''
-
-
-
-
 app.layout = html.Div([
     
     html.Div(className="row", children =[
@@ -187,12 +164,13 @@ app.layout = html.Div([
                 dcc.Loading(
                     id="loading",
                     children=[html.Div([
-                        html.Button(id = 'skip_back', n_clicks = 0, children = '<'),
-                        html.Button(id = 'skip_forward', n_clicks = 0, children = '>'),
+                        html.Button(id = 'skip_back', n_clicks = 0, children = 'skip-back'),
+                        html.Button(id = 'skip_forward', n_clicks = 0, children = 'skip-forward'),
                         html.Button(id='submit-button', n_clicks=0, children='Submit')
                     ])],
                     type="circle",
                 ),
+                html.P('skipping maintains the current date range'),
 
                 dcc.Markdown(id = 'range_text'),
             ]),
@@ -232,10 +210,14 @@ app.layout = html.Div([
             dcc.Markdown(d("""
                 ### Detailed Stop Info
 
-                Click on points on the map to select stops.
+                Click on points on the map or use the search box to select stops.
             """)),
 
             html.Div('', style={'padding': 12}),
+
+            dcc.Dropdown(
+                id = 'stop_dropdown'
+            ),
 
             dcc.Markdown(id = 'stop_name'),
             html.P(id = 'stop_description'),
@@ -260,7 +242,7 @@ app.layout = html.Div([
     ),
 
     html.Div(id='filterOne', style={'display': 'none'}, children = 0),
-    html.Div(id='filterTwo', style={'display': 'none'}, children = ''),
+    html.Div(id='GraphUpdated', style={'display': 'none'}, children = 0),
     html.Div(id='filterThree', style={'display': 'none'}, children = ''),
 
 ])
@@ -294,7 +276,7 @@ def vehicle_selector(value):
    
 
 #filters the dataset to just use the routes selected in the searchbox/dropdown
-#increments the integer in filterOne which triggers the medium callback to run
+#increments the integer in filterOne which triggers the medium filter callback to run
 @app.callback(
     Output('filterOne', 'children'),
     [Input('route_filter', 'value'), Input('route_filter', 'options')],
@@ -315,8 +297,8 @@ def filter_routes(route_value, route_options, filter1):
     
     return filter1 + 1
 
-#metrocard vs ticket selector
-#as this is the last filter before the slider it also finds the valid dates to populate the slider
+#metrocard vs ticket (medium) selector
+#as this is the last filter before the slider it also finds the valid dates to populate the slider with
 @app.callback(
     Output('date_slider', 'marks'),
     [Input('medium_selector', 'value'), Input('filterOne', 'children')])
@@ -334,8 +316,10 @@ def filterByMedium(medium, filter1):
     elif medium == 3:
         filterThree = filterTwo[filterTwo['MEDIUM_TYPE'] == 3]
 
-
+    #print(filterThree)
     date_list = pd.Series(filterThree.VALIDATION_DATE.unique())
+
+    #print(date_list)
 
     minIndex = date_list_original[date_list_original == date_list.min()].index[0]
     maxIndex = date_list_original[date_list_original == date_list.max()].index[0]
@@ -367,7 +351,7 @@ def filterByMedium(medium, filter1):
 
     return result
 
-#buttons for mvoing the date range
+#buttons for moving the date range
 @app.callback(
     Output('date_slider', 'value'),
     [Input('skip_forward', 'n_clicks'), Input('skip_back', 'n_clicks')],
@@ -434,10 +418,10 @@ def update_color_slider_marks(value, min, max):
 
 #creating the graph
 @app.callback(
-    Output('metro_density', 'figure'),
+    [Output('metro_density', 'figure'), Output('stop_dropdown', 'options'), Output('GraphUpdated', 'children')],
     [Input('submit-button', 'n_clicks')],
-    [State('date_slider', 'value'), State('medium_selector', 'value'), State('color_slider', 'value')])
-def filter_time_draw_figure(n_clicks, value, medium, color_value):
+    [State('date_slider', 'value'), State('medium_selector', 'value'), State('color_slider', 'value'), State('GraphUpdated', 'children')])
+def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
     global filterTwo
     global filterThree
     global filterFour
@@ -452,7 +436,22 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value):
 
     df = filterFour.groupby('stop_id').sum()[['USAGE']].reset_index()
     df = pd.merge(df, stopList, how="left", on="stop_id")
+    df.stop_id = df.stop_id.astype(int)
 
+    df.stop_name.fillna(df.stop_id.astype(str), inplace=True)
+    #df.stop_desc.fillna('unknown', inplace=True)
+    #df.stop_lat.fillna('unknown', inplace=True)
+    #df.stop_lon.fillna('unknown', inplace=True)
+
+    stop_list = []
+    #stop_list = [{'label': i, 'value': j} for i in df.stop_name for j in df.stop_id]
+    
+    for index, row in df.iterrows():
+        if (row.stop_id == -1):
+            stop_list.append({'label': 'N/A', 'value': row.stop_id})
+        else:
+            stop_list.append({'label': row.stop_name, 'value': row.stop_id})
+    
     if (medium == 2):
         cardFiltered = filterFour[filterFour['MEDIUM_TYPE'] == 1]
         cardFiltered = cardFiltered.groupby('stop_id').sum()[['USAGE']].reset_index()
@@ -602,8 +601,8 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value):
                 )
         }
 
-    return fig
-
+    return fig, stop_list, graphUpdated + 1
+'''
 #creates the stop list table at the bottom of the page
 @app.callback(
     [Output('table', 'columns'), Output('table', 'data')],
@@ -612,38 +611,56 @@ def createTable(n_clicks):
     global filterFive
     columns = [{"name": i, "id": i} for i in filterFive.columns]
     return columns, filterFive.to_dict('records')
+'''
 
+#sets the dropdown to be the clickdata stop
+@app.callback(
+    Output('stop_dropdown', 'value'),
+    [Input('metro_density', 'clickData')])
+def selectStop(clickData):
+    if clickData is None:
+        stopID = ''
+    else:
+        stopID = clickData['points'][0]['meta']
+
+    return stopID
 
 #creates the clicked stop info text
 @app.callback(
     [Output('stop_name', 'children'), Output('stop_description', 'children'), Output('stop_id', 'children'),
     Output('total_usage', 'children'), Output('filtered_usage', 'children')],
-    [Input('metro_density', 'clickData')])
-def display_click_data(clickData):    
-    if clickData is None:
-        stopID = 6665
+    [Input('stop_dropdown', 'value'), Input('GraphUpdated', 'children')])
+def display_click_data(stopID, graph):    
+    if (stopID == '') | (stopID is None):
+        name = ''
+        stopID = 'none selected'
+        description = 'Stats for current filter:'
+        total_usage = 'Total usage: ' + str(int(metro3['USAGE'].sum()))
+        filtered_usage = 'Filtered usage: ' + str(int(filterFour['USAGE'].sum()))
+    elif (stopID == -1):
+        stop = filterFive[filterFive['stop_id'] == stopID].reset_index()
+        name = ""
+        description = 'Stop desc: ' + str(stop.iloc[0]['stop_desc'])
+        total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
+        filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
+        stopID = 'N/A'
     else:
-        stopID = clickData['points'][0]['meta']
-
-    stop = stopList[stopList['stop_id'] == stopID].reset_index()
-    name = '**' + stop.iloc[0]['stop_name'] + '**'
-    description = 'Stop desc: ' + stop.iloc[0]['stop_desc']
-    total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
-    filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
+        stop = filterFive[filterFive['stop_id'] == stopID].reset_index()
+        #name = '**' + stop.iloc[0]['stop_name'] + '**'
+        name = ""
+        description = 'Stop desc: ' + str(stop.iloc[0]['stop_desc'])
+        total_usage = 'Total usage: ' + str(int(metro3[metro3['stop_id'] == stopID]['USAGE'].sum()))
+        filtered_usage = 'Filtered usage: ' + str(int(filterFour[filterFour['stop_id'] == stopID]['USAGE'].sum()))
 
     return name, description, 'Stop ID: ' + str(stopID), total_usage, filtered_usage
 
 #creates the per stop route bar graph
 @app.callback(
     Output('route_composition', 'figure'),
-    [Input('metro_density', 'clickData')])
-def route_composition_graph(clickData):
-    if clickData is None:
-        stop = 6665
-    else:
-        stop = clickData['points'][0]['meta']
+    [Input('stop_dropdown', 'value'), Input('GraphUpdated', 'children')])
+def route_composition_graph(stop, graph):
 
-    data = filterFour[filterFour['stop_id'] == stop].copy()
+    data = filterFour[filterFour['stop_id'] == stop]
 
     data = data.groupby('ROUTE_CODE').sum()[['USAGE']].reset_index()
     fig = go.Figure([go.Bar(x = data.index, y = data.USAGE, text = data.USAGE, textposition = 'auto')])
@@ -663,14 +680,10 @@ def route_composition_graph(clickData):
 #draws the line graph of usage per route
 @app.callback(
     Output('line_graph', 'figure'),
-    [Input('metro_density', 'clickData')])
-def route_line_graph(clickData):
-    if clickData is None:
-        stop = 6665
-    else:
-        stop = clickData['points'][0]['meta']
+    [Input('stop_dropdown', 'value'), Input('GraphUpdated', 'children')])
+def route_line_graph(stop, graph):
 
-    data = filterFour[filterFour['stop_id'] == stop].copy()
+    data = filterFour[filterFour['stop_id'] == stop]
 
     routes = data.ROUTE_CODE.unique()
 
