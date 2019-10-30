@@ -40,60 +40,18 @@ metro3.VALIDATION_DATE = pd.to_datetime(metro3['VALIDATION_DATE'])
 weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-#print(metro3[0]['VALIDATION_DATE'].date())
-
-#metro = metro.drop(14)
-#site_lat = metro.stop_lat
-#site_lon = metro.stop_lon
-#locations_name = metro.stop_name
-#usage = metro['2016-03-01']
-#colourscale = [[0, 'rgb(0,0,0)'], [1, 'rgb(255,0,0)']]
-
 
 
 colourscale = px.colors.sequential.Viridis
-'''
-= [
-        [0, 'rgb(250, 250, 250)'],        #0
-        [1.0/10000.0, 'rgb(200, 200, 200)'], #10
-        [1.0/1000.0, 'rgb(150, 150, 150)'],  #100
-        [1.0/100.0, 'rgb(100, 100, 100)'],   #1000
-        [1.0/10.0, 'rgb(50, 50, 50)'],       #10000
-        [1, 'rgb(0, 0, 0)']             #100000
 
-    ]
-'''
-
-#optionsD = np.array([[metro.stop_name], [metro.USAGE]])
-
-
-colourscale2 = {'#440154',
- '#482878',
- '#3e4989',
- '#31688e',
- '#26828e',
- '#1f9e89',
- '#35b779',
- '#6ece58',
- '#b5de2b',
- '#fde725'}
 
 route_list = metro3.ROUTE_CODE.unique()
-#stop_list = pd.DataFrame(metro3.stop_id.unique())
-#stop_list = stop_list.rename(columns={stop_list.columns[0]:'stop_id'})
 
 route_options = [{'label': i, 'value': i} for i in route_list] #list comprehension
 
-#stopList = pd.merge(stop_list, stopList, how="left", on="stop_id")
-
-#stopList.stop_name.fillna(stopList.stop_id, inplace=True)
-
-#stop_options = [{'label': i, 'value': j} for i in stopList.stop_name.unique() for j in stopList.stop_id.unique()]
-#print('list comprehension complete')
 
 date_list = pd.Series(metro3.VALIDATION_DATE.unique())
 date_list_original = pd.Series(metro3.VALIDATION_DATE.unique())
-#dates = pd.to_datetime()
 
 filterOne = metro3
 filterTwo = filterOne
@@ -176,12 +134,6 @@ app.layout = html.Div([
                 dcc.Markdown(id = 'range_text'),
             ]),
 
-            
-
-            
-
-            
-
             dcc.Graph(
                 id='metro_density',
             ),
@@ -241,14 +193,8 @@ app.layout = html.Div([
 
     ]),
 
-    dash_table.DataTable(
-        id = 'table'
-    ),
-
     html.Div(id='filterOne', style={'display': 'none'}, children = 0),
-    html.Div(id='GraphUpdated', style={'display': 'none'}, children = 0),
-    html.Div(id='filterThree', style={'display': 'none'}, children = ''),
-
+    html.Div(id='GraphUpdated', style={'display': 'none'}, children = 0)
 ])
 
 #loading bar
@@ -275,7 +221,6 @@ def vehicle_selector(value):
 
     route_list = filterOne.ROUTE_CODE.unique()
     route_options = [{'label': i, 'value': i} for i in route_list] #list comprehension
-    print(value)
     return route_options
    
 
@@ -438,12 +383,8 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
     df.stop_id = df.stop_id.astype(int)
 
     df.stop_name.fillna(df.stop_id.astype(str), inplace=True)
-    #df.stop_desc.fillna('unknown', inplace=True)
-    #df.stop_lat.fillna('unknown', inplace=True)
-    #df.stop_lon.fillna('unknown', inplace=True)
 
     stop_list = []
-    #stop_list = [{'label': i, 'value': j} for i in df.stop_name for j in df.stop_id]
     
     for index, row in df.iterrows():
         if (row.stop_id == -1):
@@ -522,9 +463,6 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
             visible = showDensity,
             colorbar = dict(
                 len = 0.9,
-               # tick0 = 0,
-              #  tickmode = 'array',
-             #   tickvals = [0, 1000, 10000, 100000]
             ),
             radius = 20,
             meta = locations_name,
@@ -542,13 +480,9 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
                     mode='markers',
                     marker=dict(
                         size = 5,
-                        #color=usage,
                         color = 'black',
                         opacity = 0.7,
-                        #cmax=2000000,
-                        #cmin=0,
                         colorscale = 'Viridis',
-                        #showscale = True,
                     ),
                     unselected = dict(
                         marker = dict(
@@ -557,8 +491,6 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
                     ),
                     hovertext=hover,
                     hoverinfo = "text",
-                    #hoverinfo="text",
-                    
                     name="stops",
                 )
     fig = {
@@ -593,16 +525,6 @@ def filter_time_draw_figure(n_clicks, value, medium, color_value, graphUpdated):
         }
 
     return fig, stop_list, graphUpdated + 1
-'''
-#creates the stop list table at the bottom of the page
-@app.callback(
-    [Output('table', 'columns'), Output('table', 'data')],
-    [Input('metro_density', 'figure')])
-def createTable(n_clicks):
-    global filterFive
-    columns = [{"name": i, "id": i} for i in filterFive.columns]
-    return columns, filterFive.to_dict('records')
-'''
 
 #sets the dropdown to be the clickdata stop
 @app.callback(
