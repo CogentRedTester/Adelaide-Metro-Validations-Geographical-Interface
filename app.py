@@ -1,3 +1,5 @@
+#Available at: https://gitlab.com/RedTester/adelaide-metro-validations-geographic-interface
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -259,10 +261,7 @@ def filterByMedium(medium, filter1):
     elif medium == 3:
         filterThree = filterTwo[filterTwo['MEDIUM_TYPE'] == 3]
 
-    #print(filterThree)
     date_list = pd.Series(filterThree.VALIDATION_DATE.unique())
-
-    #print(date_list)
 
     minIndex = date_list_original[date_list_original == date_list.min()].index[0]
     maxIndex = date_list_original[date_list_original == date_list.max()].index[0]
@@ -344,9 +343,8 @@ def print_slider_range(value):
 #creates colour slider marks below the slider ends
 @app.callback(
     Output('color_slider', 'marks'),
-    [Input('color_slider', 'value')],
-    [State('color_slider', 'min'), State('color_slider', 'max')])
-def update_color_slider_marks(value, min, max):
+    [Input('color_slider', 'value')])
+def update_color_slider_marks(value):
     result = {}
 
     result[value[0]] = str(value[0])
