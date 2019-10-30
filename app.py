@@ -22,14 +22,6 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-styles = {
-    'pre': {
-        'border': 'thin lightgrey solid',
-        'overflowX': 'scroll'
-    }
-}
-
-#metro = pd.read_csv('stops_3Dates.csv')
 metro3 = pd.read_csv('../2016-2018_Metro_sorted_removed_columns.csv')
 stopList = pd.read_csv('../stops_removed_columns.csv')
 
@@ -40,7 +32,6 @@ metro3.VALIDATION_DATE = pd.to_datetime(metro3['VALIDATION_DATE'])
 
 weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
 
 
 colourscale = px.colors.sequential.Viridis
