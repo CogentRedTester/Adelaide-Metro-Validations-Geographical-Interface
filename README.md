@@ -6,3 +6,5 @@ Uses Dash by plotly: https://dash.plot.ly/
 Validations dataset sourced from: https://data.sa.gov.au/data/dataset/adelaide-metrocard-validations
 
 Detailed stop information sourced from: https://data.sa.gov.au/data/dataset/adelaide-metro-general-transit-feed#
+
+This is a mirror, the original repository is here: https://gitlab.com/RedTester/adelaide-metro-validations-geographic-interface
