@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 from textwrap import dedent as d
 import time
 
-mapbox_access_token = 'pk.eyJ1IjoiZ2hjYXJuZWlybyIsImEiOiJjazBmOXNjNmswcWcyM2JxZXhjNzc2eDBkIn0.L4pHZaHSpa4pQL-fML9i5w'
+mapbox_access_token = 'TOKEN'
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
